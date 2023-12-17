@@ -1,4 +1,5 @@
 import React from "react";
+const API_KEY = "fbe423e0a0ed4eaf9be3b47884940831";
 
 function getWeatherIcon(wmoCode) {
   const icons = new Map([
@@ -48,11 +49,11 @@ class App extends React.Component {
     try {
       this.setState({ isLoading: true });
       // 1) Getting location (geocoding)
+
       const geoRes = await fetch(
         `https://geocoding-api.open-meteo.com/v1/search?name=${this.state.location}`
       );
       const geoData = await geoRes.json();
-      // console.log(geoData);
 
       if (!geoData.results) throw new Error("Location not found");
 
@@ -72,6 +73,34 @@ class App extends React.Component {
       console.error(err);
     } finally {
       this.setState({ isLoading: false });
+    }
+  };
+
+  getUserLocation = async () => {
+    let userLocation = [];
+    if (navigator.geolocation) {
+      try {
+        const position = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject);
+        });
+
+        const longitude = position.coords.longitude;
+        const latitude = position.coords.latitude;
+
+        userLocation = [latitude, longitude];
+
+        const res = await fetch(
+          `https://api.geoapify.com/v1/geocode/reverse?lat=${userLocation[0]}&lon=${userLocation[1]}&apiKey=${API_KEY}`
+        );
+
+        const data = await res.json();
+
+        this.setState({ location: data.features[0].properties.city });
+      } catch (error) {
+        console.error(error.message);
+      }
+    } else {
+      console.error("This browser does not support Geolocation");
     }
   };
 
@@ -95,20 +124,30 @@ class App extends React.Component {
     return (
       <div className="app">
         <h1>Classy Weather</h1>
-        <div>
+
+        <div className="input-location">
           <Input
             location={this.state.location}
             onChangeLocation={this.setLocation}
           />
+          <button
+            onClick={() => {
+              this.getUserLocation();
+            }}
+          >
+            Use my location
+          </button>
         </div>
 
         {this.state.isLoading && <p className="loader">Loading...</p>}
-        {this.state.weather.weathercode && (
-          <Weather
-            weather={this.state.weather}
-            location={this.state.displayLocation}
-          />
-        )}
+        <div className="box">
+          {this.state.weather?.weathercode && (
+            <Weather
+              weather={this.state.weather}
+              location={this.state.displayLocation}
+            />
+          )}
+        </div>
       </div>
     );
   }
@@ -120,7 +159,7 @@ class Input extends React.Component {
     return (
       <input
         type="text"
-        placeholder="Search from Location..."
+        placeholder="Type any location..."
         value={this.props.location}
         onChange={this.props.onChangeLocation}
       />
@@ -129,10 +168,6 @@ class Input extends React.Component {
 }
 
 class Weather extends React.Component {
-  // componentWillUnmount() {
-  //   console.log("Weather info unmounted")
-  // }
-
   render() {
     const {
       temperature_2m_max: max,
@@ -142,7 +177,7 @@ class Weather extends React.Component {
     } = this.props.weather;
 
     return (
-      <div>
+      <>
         <h2>Weather {this.props.location}</h2>
         <ul className="weather">
           {dates.map((date, i) => (
@@ -156,7 +191,7 @@ class Weather extends React.Component {
             />
           ))}
         </ul>
-      </div>
+      </>
     );
   }
 }
@@ -165,7 +200,7 @@ class Day extends React.Component {
   render() {
     const { max, min, date, code, isToday } = this.props;
     return (
-      <li className="day">
+      <li className={`day ${isToday ? "today-box" : ""}`}>
         <span>{getWeatherIcon(code)}</span>
         <p>{isToday ? "Today" : formatDay(date)}</p>
         <p>
